@@ -7,7 +7,10 @@ router = APIRouter()
 async def read_root():
     return {"message": "Hello, World!"}
 
-
-@router.get("/ether/{wallet}/{token}")
+@router.get("/ether/balabce/{wallet}/{token}")
 async def get_balance_wallet(wallet, token):
     return eth.get_balance_by_token(wallet, token)
+
+@router.get("/ether/balabce/{wallet}")
+async def get_balances_wallet(wallet):
+    return eth.get_balance_by_eth_tokens(wallet)

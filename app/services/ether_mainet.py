@@ -1,19 +1,15 @@
 from .conection import Web3Conection
 from web3 import Web3
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 
 class EtheriumMainet(Web3Conection):
-    
-    token_contract = {
-            'USDT': '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-            'BNB': '0xB8c77482e45F1F44dE1745F52C74426C631bDD52',
-            'stETH': '0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84',
-            'USDC': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-            }
 
     def __init__(self):
         super().__init__()
 
         self.w3 = self.connect_node('eth')
+        self.token_contract = self.rpc['eth']['token_contracts']
 
     def get_gas_price(self):
         '''Получение цены на газ'''
@@ -26,6 +22,7 @@ class EtheriumMainet(Web3Conection):
         return balance_in_eth
     
     def get_balance_by_token(self, wallet: str, token: str):
+        
         token_abi = [
         {
             "constant": True,
@@ -73,20 +70,35 @@ class EtheriumMainet(Web3Conection):
         symbol = token_contract.functions.symbol().call()
         balance = token_contract.functions.balanceOf(wallet_address).call()
         decimals = token_contract.functions.decimals().call()
-        
-        balance_in_tokens = balance / (10 ** decimals)
 
         result = {
-            'wallet': wallet_address,
             'name': name,
             'symbol': symbol,
             'balance': balance,
             'decimals': decimals
         }
-        
+
         return result
+    
+    def get_balance_by_eth_tokens(self, wallet: str):
+        result = {'wallet': wallet}
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_token = {
+                executor.submit(lambda wallet, token=token: self.get_balance_by_token(wallet, token), wallet): token
+                for token in self.rpc['eth']['token_contracts']
+            }
+
+            for future in as_completed(future_to_token):
+                token = future_to_token[future]
+                try:
+                    token_balance = future.result()
+                    result[token] = token_balance
+                except Exception as exc:
+                    print(f"{token} generated an exception: {exc}")
+
+        result_json = json.dumps(result)
+
+        return result
+            
 
 eth = EtheriumMainet()
-
-# for i in eth.token_contract:
-#     print(eth.get_balance_by_token('0xbdfa4f4492dd7b7cf211209c4791af8d52bf5c50', i))
